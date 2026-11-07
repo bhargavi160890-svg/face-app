@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from matplotlib import pyplot as plt
+# MEMORY OPTION 1: matplotlib removed (not used on the server, saves ~20-40MB RAM)
 import torch
 # In the below line,remove '.' while working on your local system. However Make sure that '.' is present before face_recognition_model while uploading to the server, Do not remove it.
 from .face_recognition_model import *
@@ -22,25 +22,34 @@ import pickle
 # Current_path stores absolute path of the file from where it runs. 
 current_path = os.path.dirname(os.path.abspath(__file__))
 
-# Cache: load the Siamese model ONCE (not on every request) - saves memory/time on Render (512MB)
-_siamese_cache = {}
-def _load_siamese(device):
-    if 'net' not in _siamese_cache:
-        net = SiameseNetwork().to(device)
-        ckpt = torch.load(current_path + '/siamese_model.t7', map_location=device)
-        net.load_state_dict(ckpt['net_dict'])
-        net.eval()
-        _siamese_cache['net'] = net
-    return _siamese_cache['net']
+# ---------------- Memory-light model loading (Render free tier = 512MB RAM) ----------------
+# 1 CPU thread -> less per-thread memory on a small instance
+torch.set_num_threads(1)
 
-# Cache: load the Siamese model ONCE (not on every request) - saves memory/time on Render (512MB)
 _siamese_cache = {}
 def _load_siamese(device):
+    """Load the Siamese model ONCE with minimal peak memory:
+    a) build the network on the 'meta' device (allocates NO weight memory)
+    b) memory-map the checkpoint file instead of reading it fully into RAM
+    c) assign=True -> use the checkpoint tensors directly (no second copy)
+    d) dynamic int8 quantization of Linear layers: fc1 160MB -> ~40MB
+    """
     if 'net' not in _siamese_cache:
-        net = SiameseNetwork().to(device)
-        ckpt = torch.load(current_path + '/siamese_model.t7', map_location=device)
-        net.load_state_dict(ckpt['net_dict'])
+        import gc
+        with torch.device('meta'):
+            net = SiameseNetwork()
+        try:
+            ckpt = torch.load(current_path + '/siamese_model.t7', map_location='cpu', mmap=True)
+        except Exception:
+            # fallback if the file format does not support mmap
+            ckpt = torch.load(current_path + '/siamese_model.t7', map_location='cpu')
+        net.load_state_dict(ckpt['net_dict'], assign=True)
+        net.float()   # checkpoint is stored as float16 -> back to float32 for CPU inference
         net.eval()
+        # inplace=True -> no deepcopy of the model during quantization
+        net = torch.ao.quantization.quantize_dynamic(net, {nn.Linear}, dtype=torch.qint8, inplace=True)
+        del ckpt
+        gc.collect()
         _siamese_cache['net'] = net
     return _siamese_cache['net']
 
@@ -74,7 +83,7 @@ def detected_face(image):
 #5) For loading your model use the current_path+'your model file name', anyhow detailed example is given in comments to the function 
 #Caution: Don't change the definition or function name; for loading the model use the current_path for path example is given in comments to the function
 def get_similarity(img1, img2):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")  # quantized model runs on CPU only
     
     det_img1 = detected_face(img1)
     det_img2 = detected_face(img2)

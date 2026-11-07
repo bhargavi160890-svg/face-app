@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 import torch
 # In the below line,remove '.' while working on your local system.However Make sure that '.' is present before face_recognition_model while uploading to the server, Do not remove it.
 from .exp_recognition_model import *

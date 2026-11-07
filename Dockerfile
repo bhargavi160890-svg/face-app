@@ -27,6 +27,10 @@ RUN if [ -n "$SIAMESE_URL" ] && [ ! -f app/Hackathon_setup/siamese_model.t7 ]; t
 
 # Render/AWS inject PORT; default 8001 for local Docker
 ENV PORT=8001
+# MEMORY OPTION 2: limit glibc memory arenas + single-threaded math libs
+ENV MALLOC_ARENA_MAX=2
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
 EXPOSE 8001
 
 CMD ["python", "app/main.py"]

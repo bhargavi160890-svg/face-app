@@ -25,15 +25,18 @@ class SiameseNetwork(nn.Module):
             nn.Conv2d(4, 8, kernel_size=3),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(8),
+            nn.MaxPool2d(2),             # 100x100 -> 50x50
 
             nn.ReflectionPad2d(1),
             nn.Conv2d(8, 8, kernel_size=3),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(8),
+            nn.MaxPool2d(2),             # 50x50 -> 25x25
         )
 
+        # fc1 input 8*25*25 = 5,000 (was 80,000) => model ~10MB instead of ~160MB
         self.fc1 = nn.Sequential(
-            nn.Linear(8*100*100, 500),
+            nn.Linear(8*25*25, 500),
             nn.ReLU(inplace=True),
 
             nn.Linear(500, 500),
