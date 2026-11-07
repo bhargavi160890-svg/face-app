@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Index</title>
+</head>
+<body>
+    <div>
+        <h1 style="background-color:LightGray;">
+            <center>Recognition Application</center>
+        </h1>
+    </div>
+    <div>
+        <fieldset>
+        <ul>
+            <li><span style="font-weight:bold;font-family:sans-serif">Select a task:</span> 
+            <br><br><br>
+            <form action="{{ url_for('similarity_root') }}"><button>Face Similarity</button></form>
+            <br><br>
+            <form action="{{ url_for('face_recognition_root') }}"><button>Face Recognition</button></form>
+            <br><br>
+            <form action="{{ url_for('expr_recognition_root') }}"><button>Expression Recognition</button></form>
+            <br>
+            </li>
+            <br>
+        </ul>
+        </fieldset>
+    </div>
+</body>
+</html>

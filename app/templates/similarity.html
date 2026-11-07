@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Index</title>
+</head>
+<body>
+    <div>
+        <h1 style="background-color:LightGray;">
+            <center>Face Similarity</center>
+        </h1>
+    </div>
+    <div>
+        <fieldset>
+        <ul>
+            <!li>
+            <br>
+            <form action="/predict_similarity/" enctype="multipart/form-data" method="post">
+                <span style="font-weight:bold;font-family:sans-serif">Upload First Image:</span> <br><br>
+                <input name="file1" type="file" onchange="readURL(this);" />
+                <br><br><br>
+                <span style="font-weight:bold;font-family:sans-serif">Upload Second Image:</span> <br><br>
+                <input name="file2" type="file" onchange="readURL(this);" />
+                <br><br><br><br>
+                <button type="submit">Check Similarity</button>
+            </form>
+            <!/li>
+            <br><br>
+            <form action="/" method="get">
+                <button type="submit">Home</button>
+            </form>
+        </ul>
+        </fieldset>
+    </div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# CPU-only PyTorch wheels (~200MB instead of ~2.5GB CUDA build) - needed for Render/AWS free tiers
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+uvicorn==0.17.6
+fastapi==0.99.1
+pydantic==1.10.10
+requests==2.23.0
+jinja2==3.1.2
+python-multipart==0.0.6
+
+scikit-learn==1.2.2
+joblib==1.3.2
+Pillow==9.4.0
+torch==2.1.0+cpu
+torchvision==0.16.0+cpu
+matplotlib==3.7.1
+
+#opencv-python==4.5.5.64
+numpy==1.26.4
+pandas==2.2.2
+# Prefer headless on servers (no GUI deps); 4.9 works well with numpy 1.26.x
+opencv-python-headless==4.9.0.80

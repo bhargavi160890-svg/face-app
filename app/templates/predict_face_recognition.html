@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Predict</title>
+</head>
+<body>
+    <div>
+        <h1 style="background-color:LightGray;">
+            <center>Face Recognition</center>
+        </h1>
+    </div>
+    <div>
+        <fieldset>
+            <h2>
+                <center>
+                    <span style="font-weight:bold;font-family:sans-serif">Prediction: </span> 
+                    <span style="font-weight:bold;color:blue"> {{result}}</span>
+                </center>
+            </h2>
+            <h3><center><span style="font-weight:bold;font-family:sans-serif">Input image:</span></Input></center></h3> 
+            <p>
+              <center>
+              <img src="{{face_rec_filename}}" alt={{face_rec_filename1}} width='150' height='150'>
+              </center>
+            </p>
+            <br>
+            <form action="/face_recognition/" method="get">
+                <center><button type="submit">Check Another Input</button></center>
+            </form>
+            <br>
+            <form action="/" method="get">
+                <center><button type="submit">Home</button></center>
+            </form>
+        </fieldset>
+    </div>
+</body>
+</html>

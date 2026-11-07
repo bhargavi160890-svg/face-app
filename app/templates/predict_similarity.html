@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Predict</title>
+</head>
+<body>
+    <div>
+        <h1 style="background-color:LightGray;">
+            <center>Face Similarity</center>
+        </h1>
+    </div>
+    <div>
+        <fieldset>
+            <h2>
+                <center>
+                    <span style="font-weight:bold;font-family:sans-serif">Dissimilarity:</span> 
+                    <span style="font-weight:bold;color:blue"> {{result}}</span>
+                </center>
+            </h2>
+            <h3><center><span style="font-weight:bold;font-family:sans-serif">Input images:</span></Input></center></h3> 
+            <p>
+              <center>
+              <img src="{{simi_filename1}}" alt={{simi_filename1}} width='150' height='150'>
+              <img src="{{simi_filename2}}" alt={{simi_filename2}} width='150' height='150'>
+              </center>
+            </p>
+            <br>
+            <form action="/similarity/" method="get">
+                <center><button type="submit">Check Another Input</button></center>
+            </form>
+            <br>
+            <form action="/" method="get">
+                <center><button type="submit">Home</button></center>
+            </form>
+        </fieldset>
+    </div>
+</body>
+</html>
