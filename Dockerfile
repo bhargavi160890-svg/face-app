@@ -19,11 +19,25 @@ USER myuser
 
 COPY --chown=myuser app app
 
-# Optional: download the model at build time if it is NOT in the repo (GitHub 100MB limit).
-# Set SIAMESE_URL as a build arg / Render env var, e.g. https://huggingface.co/<user>/<repo>/resolve/main/siamese_model.t7
+# Download models at build time from HuggingFace (files present in the repo are NOT overwritten).
+# Render env vars:
+#   HF_MODEL_BASE = https://huggingface.co/UBHT/face-siamese/resolve/main
+#   MODEL_VERSION = v1, v2, ...  -> change it after uploading new models (forces fresh download, bypasses Docker cache)
+# Files not uploaded yet (e.g. expression_model.t7 before Stage 4) are skipped, build continues.
+ARG HF_MODEL_BASE=""
 ARG SIAMESE_URL=""
-RUN if [ -n "$SIAMESE_URL" ] && [ ! -f app/Hackathon_setup/siamese_model.t7 ]; then \
-      wget -q -O app/Hackathon_setup/siamese_model.t7 "$SIAMESE_URL"; fi
+ARG MODEL_VERSION="v1"
+RUN echo "Model version: $MODEL_VERSION" && \
+    if [ -n "$SIAMESE_URL" ] && [ ! -f app/Hackathon_setup/siamese_model.t7 ]; then \
+      wget -q -O app/Hackathon_setup/siamese_model.t7 "$SIAMESE_URL"; fi && \
+    if [ -n "$HF_MODEL_BASE" ]; then \
+      for f in siamese_model.t7 face_classifier.sav expression_model.t7; do \
+        if [ ! -f "app/Hackathon_setup/$f" ]; then \
+          (wget -q -O "/tmp/$f" "$HF_MODEL_BASE/$f" && mv "/tmp/$f" "app/Hackathon_setup/$f" && echo "downloaded $f") \
+          || echo "skip $f (not on HuggingFace yet)"; \
+        fi; \
+      done; \
+    fi
 
 # Render/AWS inject PORT; default 8001 for local Docker
 ENV PORT=8001

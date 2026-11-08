@@ -53,6 +53,19 @@ def _load_siamese(device):
         _siamese_cache['net'] = net
     return _siamese_cache['net']
 
+# Classifier (Stage 3) - loaded ONCE. File holds {'classifier': sklearn model, 'classes': [names]}
+_clf_cache = {}
+def _load_classifier():
+    if 'clf' not in _clf_cache:
+        obj = joblib.load(current_path + '/face_classifier.sav')
+        if isinstance(obj, dict):
+            _clf_cache['clf'] = obj['classifier']
+            _clf_cache['classes'] = obj.get('classes', classes)
+        else:                       # plain sklearn model -> fall back to 'classes' list in face_recognition_model.py
+            _clf_cache['clf'] = obj
+            _clf_cache['classes'] = classes
+    return _clf_cache['clf'], _clf_cache['classes']
+
 #1) The below function is used to detect faces in the given image.
 #2) It returns only one image which has maximum area out of all the detected faces in the photo.
 #3) If no face is detected,then it returns zero(0).
@@ -123,12 +136,18 @@ def get_similarity(img1, img2):
 #5) Along with the siamese, you need the classifier as well, which is to be finetuned with the faces that you are training
 ##Caution: Don't change the definition or function name; for loading the model use the current_path for path example is given in comments to the function
 def get_face_class(img1):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")  # quantized model runs on CPU only
     
     det_img1 = detected_face(img1)
-    if(det_img1 == 0):
+    if not isinstance(det_img1, Image.Image):
         det_img1 = Image.fromarray(cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY))
     ##YOUR CODE HERE, return face class here
     ##Hint: you need a classifier finetuned for your classes, it takes o/p of siamese as i/p to it
     ##Better Hint: Siamese experiment is covered in one of the labs
-    return "YET TO BE CODED"
+    face1 = trnscm(det_img1).unsqueeze(0)            # same transform as training: 100x100 grayscale tensor
+    feature_net = _load_siamese(device)               # same (shared) Siamese model as get_similarity
+    with torch.no_grad():
+        embedding = feature_net.forward_once(face1.to(device)).numpy()
+    clf, class_names = _load_classifier()
+    pred = int(clf.predict(embedding)[0])
+    return str(class_names[pred])
