@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-#from matplotlib import pyplot as plt
+# matplotlib removed (not used on the server, saves RAM)
 import torch
 # In the below line,remove '.' while working on your local system.However Make sure that '.' is present before face_recognition_model while uploading to the server, Do not remove it.
 from .exp_recognition_model import *
@@ -17,6 +17,27 @@ import os
 
 # Current_path stores absolute path of the file from where it runs.
 current_path = os.path.dirname(os.path.abspath(__file__))
+
+# Load the expression model ONCE (not on every request). File holds {'net_dict': float16 weights, 'classes': [names]}
+_exp_cache = {}
+def _load_expression_model():
+    if 'net' not in _exp_cache:
+        ckpt = torch.load(current_path + '/expression_model.t7', map_location='cpu')
+        _exp_cache['tta_flag'] = ckpt.get('tta', False)   # test-time augmentation (image + mirror), same as Colab eval
+        names = ckpt.get('classes') or [classes[i] for i in sorted(classes)]
+        if 'arch' in ckpt:   # v3: pretrained backbone (efficientnet_b0 / mobilenet_v3_large) fine-tuned in Colab
+            net = build_tl_model(ckpt['arch'], num_classes=len(names), pretrained=False)
+            tf = make_tl_transform(ckpt.get('img_size', 112), ckpt.get('mean', (0.485, 0.456, 0.406)),
+                                   ckpt.get('std', (0.229, 0.224, 0.225)))
+        else:                # v1/v2: own CNN
+            net = facExpRec(num_classes=len(names), **ckpt.get('config', {}))   # same widths/drops as training
+            tf = make_transform(ckpt.get('img_size', 48))
+        net.load_state_dict(ckpt['net_dict'])   # float16 -> float32 copied automatically
+        net.float().eval()
+        del ckpt
+        _exp_cache['net'], _exp_cache['classes'], _exp_cache['tf'] = net, names, tf
+        _exp_cache['tta'] = bool(_exp_cache.get('tta_flag', False))
+    return _exp_cache['net'], _exp_cache['classes'], _exp_cache['tf']
 
 
 #1) The below function is used to detect faces in the given image.
@@ -49,7 +70,7 @@ def detected_face(image):
 #5) For loading your model use the current_path+'your model file name', anyhow detailed example is given in comments to the function 
 ##Caution: Don't change the definition or function name; for loading the model use the current_path for path example is given in comments to the function
 def get_expression(img):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     
     ##########################################################################################
     ##Example for loading a model using weight state dictionary:                            ##
@@ -63,9 +84,15 @@ def get_expression(img):
     ##########################################################################################
 
     face = detected_face(img)
-    if face==0:
+    if not isinstance(face, Image.Image):      # no face found -> use full grayscale image
         face = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
     
     # YOUR CODE HERE, return expression using your model
-
-    return "YET TO BE CODED"
+    net, names, tf = _load_expression_model()
+    x = tf(face).unsqueeze(0).to(device)        # gray -> resize -> tensor (same as training eval transform)
+    with torch.no_grad():
+        logits = net(x)
+        if _exp_cache.get('tta'):
+            logits = logits + net(torch.flip(x, dims=[3]))   # mirrored face -> more stable prediction
+        pred = int(logits.argmax(1).item())
+    return str(names[pred])
