@@ -12,6 +12,8 @@ from app.config import settings
 from app import __version__
 from app.Hackathon_setup import face_recognition, exp_recognition
 
+import io
+import os
 import numpy as np
 from PIL import Image
 
@@ -32,6 +34,24 @@ face_rec_filename = None
 expr_rec_filename = None
 
 
+async def read_upload(upload: UploadFile, prefix: str = ''):
+    """Read an uploaded file WITHOUT trusting content_type (mobile/camera uploads often send
+    'application/octet-stream'). Returns (saved_path, RGB numpy array) or (None, None) if not a readable image."""
+    contents = await upload.read()
+    if not contents:
+        return None, None
+    try:
+        img = Image.open(io.BytesIO(contents)).convert('RGB')   # also handles PNG (4-ch) / grayscale
+    except Exception:
+        return None, None                                        # e.g. HEIC or a non-image file
+    name = os.path.splitext(os.path.basename(upload.filename or ''))[0] or 'upload'
+    path = 'app/static/' + prefix + name + '.jpg'               # prefix keeps the 2 similarity images apart
+    img.save(path, format='JPEG')                                # always a browser-viewable file
+    return path, np.array(img).astype(np.uint8)
+
+INVALID_IMAGE_MSG = "Could not read the image. Please upload a JPG or PNG photo."
+
+
 ####################################  Home Page endpoints  #################################################
 @app.get("/")
 async def root(request: Request):
@@ -49,29 +69,19 @@ async def create_upload_files(request: Request, file1: UploadFile = File(...), f
     global simi_filename1
     global simi_filename2
     
-    if 'image' in file1.content_type:
-        contents = await file1.read()
-        simi_filename1 = 'app/static/' + file1.filename
-        with open(simi_filename1, 'wb') as f:
-            f.write(contents)
-    
-    if 'image' in file2.content_type:
-        contents = await file2.read()
-        simi_filename2 = 'app/static/' + file2.filename
-        with open(simi_filename2, 'wb') as f:
-            f.write(contents)
-    
-    # .convert('RGB') handles PNG (4-channel) and grayscale uploads that broke the old reshape
-    img1 = np.array(Image.open(simi_filename1).convert('RGB')).astype(np.uint8)
-    img2 = np.array(Image.open(simi_filename2).convert('RGB')).astype(np.uint8)
+    simi_filename1, img1 = await read_upload(file1, 'img1_')
+    simi_filename2, img2 = await read_upload(file2, 'img2_')
+    if img1 is None or img2 is None:
+        return templates.TemplateResponse("predict_similarity.html", {"request": request, "result": INVALID_IMAGE_MSG,
+                                                       "simi_filename1": '', "simi_filename2": ''})
     
     result = face_recognition.get_similarity(img1, img2)
     #print(result)
     
     return templates.TemplateResponse("predict_similarity.html", {"request": request,
                                                        "result": np.round(result, 3),
-                                                       "simi_filename1": '../static/'+file1.filename,
-                                                       "simi_filename2": '../static/'+file2.filename,})
+                                                       "simi_filename1": '../static/'+os.path.basename(simi_filename1),
+                                                       "simi_filename2": '../static/'+os.path.basename(simi_filename2),})
     
 
 ####################################  Face Recognition endpoints  #################################################
@@ -84,20 +94,17 @@ async def face_recognition_root(request: Request):
 async def create_upload_files(request: Request, file3: UploadFile = File(...)):
     global face_rec_filename
     
-    if 'image' in file3.content_type:
-        contents = await file3.read()
-        face_rec_filename = 'app/static/' + file3.filename
-        with open(face_rec_filename, 'wb') as f:
-            f.write(contents)
-    
-    img1 = np.array(Image.open(face_rec_filename).convert('RGB')).astype(np.uint8)
+    face_rec_filename, img1 = await read_upload(file3)
+    if img1 is None:
+        return templates.TemplateResponse("predict_face_recognition.html", {"request": request, "result": INVALID_IMAGE_MSG,
+                                                       "face_rec_filename": ''})
         
     result = face_recognition.get_face_class(img1)
     print(result)
     
     return templates.TemplateResponse("predict_face_recognition.html", {"request": request,
                                                        "result": result,
-                                                       "face_rec_filename": '../static/'+file3.filename,})
+                                                       "face_rec_filename": '../static/'+os.path.basename(face_rec_filename),})
 
 
 ####################################  Expresion Recognition endpoints  #################################################
@@ -110,20 +117,17 @@ async def expr_recognition_root(request: Request):
 async def create_upload_files(request: Request, file4: UploadFile = File(...)):
     global expr_rec_filename
     
-    if 'image' in file4.content_type:
-        contents = await file4.read()
-        expr_rec_filename = 'app/static/' + file4.filename
-        with open(expr_rec_filename, 'wb') as f:
-            f.write(contents)
-    
-    img1 = np.array(Image.open(expr_rec_filename).convert('RGB')).astype(np.uint8)
+    expr_rec_filename, img1 = await read_upload(file4)
+    if img1 is None:
+        return templates.TemplateResponse("predict_expr_recognition.html", {"request": request, "result": INVALID_IMAGE_MSG,
+                                                       "expr_rec_filename": ''})
         
     result = exp_recognition.get_expression(img1)
     print(result)
     
     return templates.TemplateResponse("predict_expr_recognition.html", {"request": request,
                                                        "result": result,
-                                                       "expr_rec_filename": '../static/'+file4.filename,})
+                                                       "expr_rec_filename": '../static/'+os.path.basename(expr_rec_filename),})
 
 
 
