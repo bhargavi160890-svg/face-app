@@ -29,6 +29,11 @@ def _load_expression_model():
             net = build_tl_model(ckpt['arch'], num_classes=len(names), pretrained=False)
             tf = make_tl_transform(ckpt.get('img_size', 112), ckpt.get('mean', (0.485, 0.456, 0.406)),
                                    ckpt.get('std', (0.229, 0.224, 0.225)))
+        elif 'backbone' in ckpt.get('config', {}):   # v3 Colab: ResNet18 / MobileNetV2 inside facExpRec (net/head)
+            net = facExpRec(num_classes=len(names), **ckpt['config'])            # pretrained=False by default
+            tf = make_backbone_transform(ckpt.get('img_size', 96), ckpt.get('mean', (0.485, 0.456, 0.406)),
+                                         ckpt.get('std', (0.229, 0.224, 0.225)))
+            _exp_cache['tta_flag'] = ckpt.get('tta', True)    # v3 test accuracy was measured WITH hflip TTA
         else:                # v1/v2: own CNN
             net = facExpRec(num_classes=len(names), **ckpt.get('config', {}))   # same widths/drops as training
             tf = make_transform(ckpt.get('img_size', 48))

@@ -1,7 +1,8 @@
 import torch
 import torchvision
 import torch.nn as nn
-from torchvision import transforms
+from torchvision import models, transforms
+from PIL import Image, ImageStat
 ## Add more imports if required
 
 ####################################################################################################################
@@ -15,9 +16,28 @@ classes = {0: 'ANGER', 1: 'DISGUST', 2: 'FEAR', 3: 'HAPPINESS', 4: 'NEUTRAL', 5:
 # Expression CNN - EXACT same architecture as trained in Colab (notebook 4b)
 # Conv blocks + global average pooling + 1 Linear layer.
 # widths/drops come from the 'config' saved inside expression_model.t7 -> always matches the trained model
+# Supports BOTH saved model types (chosen by the 'config' inside expression_model.t7):
+#   v2  (own CNN)        : config = {widths, drops, head_drop}  -> layers features / pool / classifier
+#   v3  (Colab ResNet18) : config = {backbone, head_drop}       -> layers net / head  (same names as Colab v3)
 class facExpRec(torch.nn.Module):
-    def __init__(self, num_classes=7, widths=(32, 64, 128, 256), drops=(0.1, 0.2, 0.3, 0.3), head_drop=0.5):
+    def __init__(self, num_classes=7, widths=(32, 64, 128, 256), drops=(0.1, 0.2, 0.3, 0.3), head_drop=0.5,
+                 backbone=None, pretrained=False):
         super(facExpRec, self).__init__()
+        self.backbone_name = backbone
+        if backbone is not None:          # ---- v3: pretrained backbone, rebuilt WITHOUT ImageNet weights
+            if backbone == 'resnet18':
+                net = models.resnet18(weights=None)
+                feat = net.fc.in_features
+                net.fc = nn.Identity()
+            elif backbone == 'mobilenet_v2':
+                net = models.mobilenet_v2(weights=None)
+                feat = net.classifier[-1].in_features
+                net.classifier = nn.Identity()
+            else:
+                raise ValueError("unknown backbone: " + str(backbone))
+            self.net = net
+            self.head = nn.Sequential(nn.Dropout(head_drop), nn.Linear(feat, num_classes))
+            return
         def block(c_in, c_out, drop):
             return nn.Sequential(
                 nn.Conv2d(c_in, c_out, 3, padding=1, bias=False), nn.BatchNorm2d(c_out), nn.ReLU(inplace=True),
@@ -29,6 +49,8 @@ class facExpRec(torch.nn.Module):
         self.classifier = nn.Sequential(nn.Flatten(), nn.Dropout(head_drop), nn.Linear(widths[-1], num_classes))
 
     def forward(self, x):
+        if self.backbone_name is not None:
+            return self.head(self.net(x))
         return self.classifier(self.pool(self.features(x)))
 
 # Sample Helper function
@@ -44,6 +66,30 @@ trnscm = transforms.Compose([rgb2gray, transforms.Resize((64,64)), transforms.To
 # Same transform for any image size saved in the model file (e.g. 48 or 64)
 def make_transform(img_size=48):
     return transforms.Compose([rgb2gray, transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+
+
+# ---------------- v3 (Colab ResNet18) transform: MUST match eval_tf in Hackathon4b_Expression_Recognition_v3 ----------------
+def to_gray3(im):
+    # detected_face() returns a mode-'L' image; the backbone needs 3 identical channels
+    return im.convert('L').convert('RGB')
+
+class SquarePad:
+    """Letterbox to a square with the image's own mean colour (keeps face proportions)."""
+    def __call__(self, im):
+        w, h = im.size
+        if w == h:
+            return im
+        s = max(w, h)
+        fill = tuple(int(v) for v in ImageStat.Stat(im).mean)
+        if im.mode == 'L':
+            fill = fill[0]
+        canvas = Image.new(im.mode, (s, s), fill)
+        canvas.paste(im, ((s - w) // 2, (s - h) // 2))
+        return canvas
+
+def make_backbone_transform(img_size=96, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    return transforms.Compose([to_gray3, SquarePad(), transforms.Resize((img_size, img_size)),
+                               transforms.ToTensor(), transforms.Normalize(list(mean), list(std))])
 
 
 # ---------------- OPTIONAL v3: transfer learning (NOT deployed now; v2 CNN is the baseline) ----------------
